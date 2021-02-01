@@ -1,0 +1,15 @@
+
+version: '3'
+services:
+    test:
+        image: met-base:1.0
+        restart: always
+        privileged: true
+        stdin_open: true
+        tty: true
+        # mem_limit: 10000m
+        volumes:
+            - /nas02/data:/data
+            - ./work:/work
+        # ports:
+        #    - "2222:22"
