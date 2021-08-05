@@ -1,0 +1,60 @@
+FROM wangrzqi/oneapi-pure
+
+RUN apt-get update && \
+    apt-get install -y git libpng-dev libncurses-dev ruby sqlite3 m4 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN ["/bin/bash", "-c", "mkdir /opt/software && cd /opt/software && \
+    git clone https://gitee.com/dongli85/starman && \
+    . /opt/software/starman/setup/bashrc && \
+    . /opt/intel/oneapi/setvars.sh && \
+    starman setup --install-root /opt/software --cache-root /tmp/starman --rc-root /var/starman && \
+    starman config -c ifort --cc $(which icc) --mpicc $(which mpiicc) \
+                   --cxx $(which icpc) --mpicxx $(which mpiicpc) \
+                   --fc $(which ifort) --mpifc $(which mpiifort) && \
+    starman config -c ifort && \
+    starman install netcdf eccodes bufrlib fox proj geos -j 4 -k && \
+    rm -rf /tmp/starman/*"]
+
+RUN ["/bin/bash", "-c", "apt-get update && \
+    apt-get install -y python3 python3-pip && \
+    . /opt/software/starman/setup/bashrc && \
+    . /opt/intel/oneapi/setvars.sh && \
+    starman load netcdf eccodes proj geos && \
+    pip3 install numpy scipy matplotlib pyproj pygrib \
+                 xarray pendulum pexpect f90nml psutil \
+                 psycopg2-binary netCDF4 requests jinja2 \
+                 packaging cartopy proplot && \
+    rm -rf /var/lib/apt/lists/*"]
+
+RUN pip3 install apache-airflow[crypto,celery,postgres,redis] && \
+    rm -rf ~/.cache/pip
+
+ENV AIRFLOW_HOME /home/airflow
+RUN useradd -m -d ${AIRFLOW_HOME} airflow
+
+
+RUN chown -R airflow.airflow /opt
+USER airflow
+WORKDIR $AIRFLOW_HOME
+
+#COPY airflow.cfg ${AIRFLOW_HOME}/airflow.cfg
+#COPY entrypoint.sh /entrypoint.sh
+#ENTRYPOINT ["/entrypoint.sh"]
+
+COPY --chown=airflow laps /opt/laps
+RUN ["/bin/bash", "-c", "source /opt/software/starman/setup/bashrc && \
+    ls -alh /opt && \
+    starman load gcc && \
+    starman load netcdf && \
+    cd /opt/laps && ./install-laps.py --prefix /opt/laps-build --compiler ifort && \
+    test -f /opt/laps-build/run/bin/lga.exe || (echo 'Failed to build lga.exe!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/lvd_sat_ingest.exe || (echo 'Failed to build lga.exe!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/cloud.exe || (echo 'Failed to build lga.exe!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/stmas_mg.x || (echo 'Failed to build stmas_mg.x!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/ingest_sounding.exe || (echo 'Failed to build stmas_mg.x!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/deriv.exe || (echo 'Failed to build stmas_mg.x!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/remap_polar_netcdf.exe || (echo 'Failed to build stmas_mg.x!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/mosaic_radar.x || (echo 'Failed to build stmas_mg.x!'; exit 1) && \
+    test -f /opt/laps-build/run/bin/STMAS3D.exe || (echo 'Failed to build stmas_mg.x!'; exit 1)"]
+
